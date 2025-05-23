@@ -6,7 +6,8 @@ import hashlib
 import base64
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
+
 from fastapi.responses import RedirectResponse
 from starlette.requests import Request
 from keycloak import KeycloakOpenID
@@ -15,16 +16,18 @@ from keycloak import KeycloakOpenID
 load_dotenv()
 router = APIRouter()
 
-
 # Keycloakクライアントの初期化
 keycloak_openid = KeycloakOpenID(
     server_url="http://localhost:8080/",
     client_id=os.getenv("KEYCLOAK_CLIENT_ID"),
-    realm_name=os.getenv("KEYCLOAK_REALM")
+    realm_name=os.getenv("KEYCLOAK_REALM"),    
+    client_secret_key=os.getenv("KEYCLOAK_CLIENT_SECRET"),
+    verify=True
 )
 
 
 def generate_pkce_pair():
+    """PKCEのためのcode_verifierとcode_challengeを生成する."""
     verifier = base64.urlsafe_b64encode(
         secrets.token_bytes(32)).rstrip(b"=").decode()
     digest = hashlib.sha256(verifier.encode()).digest()
@@ -34,6 +37,7 @@ def generate_pkce_pair():
 
 @router.get("/login")
 def login(request: Request, state: str = "/"):
+    """Keycloakの認証エンドポイントにリダイレクトする."""
     try:
         # PKCEのためのcode_verifierとcode_challengeを生成
         # verifier, challenge = generate_pkce_pair()
@@ -46,8 +50,9 @@ def login(request: Request, state: str = "/"):
         # Keycloakの認証エンドポイントの取得
         redirect_url = keycloak_openid.auth_url(
             redirect_uri=os.getenv("CALLBACK_URL"),
-            scope="openid email profile",
-            state=state
+            scope="openid email profile roles",
+            state=state,
+            nonce=request.session["nonce"]
         )
         # ログインURLにリダイレクト
         return RedirectResponse(redirect_url)
@@ -60,7 +65,13 @@ def login(request: Request, state: str = "/"):
 
 
 @router.get("/callback")
-def callback(request: Request, code: str, state: str):
+def callback(
+        response: Response,
+        request: Request,
+        code: str,
+        state: str
+     ) -> dict:
+    """Keycloakの認証コールバックエンドポイント. Keycloakからの認証コードを受け取り, アクセストークンを取得する."""
     try:
         # stateの検証
         if request.session["state"] != state:
@@ -95,11 +106,33 @@ def callback(request: Request, code: str, state: str):
         request.session["reflesh_expires_in"] = time.time() + \
             tokens["refresh_expires_in"]
 
-        # TOOD: クッキーにアクセストークンを保存する
+        # クッキーにアクセストークンを格納する
+        for name, value, age in [
+            (
+                "access_token",
+                tokens["access_token"],
+                tokens["expires_in"]
+            ),
+            (
+                "refresh_token",
+                tokens["refresh_token"],
+                tokens.get("refresh_expires_in", 86400)
+            ),
+        ]:
+            response.set_cookie(
+                key=name,
+                value=value,
+                httponly=True,       # JavaScriptからアクセスできない
+                secure=False,        # HTTPS 本番ではTrue
+                samesite="lax",      # CSRF対策
+                max_age=age,         # 有効期限
+            )
 
-        return RedirectResponse(
-            f"{os.getenv('FRONTEND_URL')}/{state}"
-        )
+        # SPAへのリダイレクトはコメントアウト
+        # return RedirectResponse(
+        #     f"{os.getenv('FRONTEND_URL')}{state}"
+        # )
+        return {"access_token": request.session["access_token"]}
     except Exception as e:
         raise HTTPException(
                 status_code=500,

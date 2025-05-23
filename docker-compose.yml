@@ -53,21 +53,21 @@ services:
     restart: unless-stopped
 
   # ---------- Backend (FastAPI) ----------
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: backend
-    env_file:
-      - ./backend/.env
-    networks: [front]
-    ports:
-      - "8000:8000"
-    environment:
-      TZ: Asia/Tokyo
-    depends_on:
-      - keycloak
-    restart: unless-stopped
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: backend
+  #   env_file:
+  #     - ./backend/.env
+  #   networks: [front]
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     TZ: Asia/Tokyo
+  #   depends_on:
+  #     - keycloak
+  #   restart: unless-stopped
 
   # ---------- Frontend (Vite + React) ----------
   frontend:

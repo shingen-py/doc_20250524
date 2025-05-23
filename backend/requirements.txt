@@ -4,3 +4,4 @@ gunicorn
 python-keycloak
 python-dotenv
 itsdangerous
+python-jose[cryptography]

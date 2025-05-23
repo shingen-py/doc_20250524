@@ -3,14 +3,32 @@ import React, { useEffect, useState } from "react";
 const App: React.FC = () => {
   const [logged, setLogged] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
+    // アクセストークンをクッキーから取得
+    const token = document.cookie
+      .split("; ")
+      .find(row => row.startsWith("access_token="))
+      ?.split("=")[1];
+    if (token) {
+      setAccessToken(token);
+    }
+
+    console.log(document.cookie);
+        
     // ログイン済みチェック
-    fetch("http://localhost:8000/api/auth/me", {
-      credentials: "include"
+    fetch("http://localhost:8000/api/user/profile", {
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      }
     })
       .then(res => {
-        if (res.ok) setLogged(true);
+        if (res.ok) {
+          setLogged(true);
+        }
       })
       .catch(() => {
         setLogged(false);
@@ -53,7 +71,10 @@ const App: React.FC = () => {
           </button>
         )
       ) : (
-        <h1>ログインが完了しました！</h1>
+        <>
+          <h1>ログインが完了しました！</h1>
+          <p>{accessToken}</p>
+        </>
       )}
       <style>
         {`
