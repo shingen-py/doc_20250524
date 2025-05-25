@@ -18,9 +18,9 @@ router = APIRouter()
 
 # Keycloakクライアントの初期化
 keycloak_openid = KeycloakOpenID(
-    server_url="http://localhost:8080/",
+    server_url=os.getenv("KEYCLOAK_URL"),
     client_id=os.getenv("KEYCLOAK_CLIENT_ID"),
-    realm_name=os.getenv("KEYCLOAK_REALM"),    
+    realm_name=os.getenv("KEYCLOAK_REALM"),
     client_secret_key=os.getenv("KEYCLOAK_CLIENT_SECRET"),
     verify=True
 )
@@ -50,7 +50,7 @@ def login(request: Request, state: str = "/"):
         # Keycloakの認証エンドポイントの取得
         redirect_url = keycloak_openid.auth_url(
             redirect_uri=os.getenv("CALLBACK_URL"),
-            scope="openid email profile roles",
+            scope="openid email roles",
             state=state,
             nonce=request.session["nonce"]
         )

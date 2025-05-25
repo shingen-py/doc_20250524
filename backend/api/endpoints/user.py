@@ -8,26 +8,30 @@ from keycloak import KeycloakOpenID, KeycloakAdmin
 from jose import jwt, JWTError
 import httpx
 
+import pprint
+
 load_dotenv()
 router = APIRouter()
 
 keycloak_client_id = os.getenv("KEYCLOAK_CLIENT_ID")
 keycloak_realm = os.getenv("KEYCLOAK_REALM")
+keycloak_url = os.getenv("KEYCLOAK_URL")
+keycloak_client_secret = os.getenv("KEYCLOAK_CLIENT_SECRET")
 
 # Keycloakクライアントの初期化
 keycloak_openid = KeycloakOpenID(
-    server_url="http://localhost:8080/",
+    server_url=keycloak_url,
     client_id=keycloak_client_id,
     realm_name=keycloak_realm,
-    client_secret_key=os.getenv("KEYCLOAK_CLIENT_SECRET"),
+    client_secret_key=keycloak_client_secret,
     verify=True
 )
 
 keycloak_admin = KeycloakAdmin(
-    server_url="http://localhost:8080/",
+    server_url=keycloak_url,
     client_id=keycloak_client_id,
     realm_name=keycloak_realm,
-    client_secret_key=os.getenv("KEYCLOAK_CLIENT_SECRET"),
+    client_secret_key=keycloak_client_secret,
 )
 
 bearer_scheme = HTTPBearer()
@@ -52,7 +56,7 @@ async def verify_access_token(
                 detail="Invalid token: No key ID")
 
         # JWKS取得
-        jwks_url = "http://localhost:8080/realms/" + \
+        jwks_url = f"{keycloak_url}/realms/" + \
             f"{keycloak_realm}/protocol/openid-connect/certs"
         async with httpx.AsyncClient() as client:
             jwks_response = await client.get(jwks_url)
@@ -69,11 +73,13 @@ async def verify_access_token(
                     "n": key.get("n"),
                     "e": key.get("e")
                 }
+        pprint.pprint(rsa_key)
 
         if not rsa_key:
             raise HTTPException(status_code=401, detail="Public key not found")
 
         # 発行者（Issuer）の設定
+        # ここはlocalhost
         issuer = f"http://localhost:8080/realms/{keycloak_realm}"
 
         # トークン検証（署名、audience、発行者、有効期限）
@@ -142,7 +148,7 @@ async def require_user_role(
 def create_user_with_password(
         email: str,
         password: str,
-        roles: list[str],
+        roles: list[str] = [],
         first_name: str | None = None,
         last_name: str | None = None):
     """ユーザーを新規作成する."""
@@ -165,8 +171,7 @@ def create_user_with_password(
         try:
             defined_client_roles = keycloak_admin.get_client_roles(
                 client_id=keycloak_client_id
-            )
-
+            )            
             new_roles = []
             for role in roles:
                 is_defined = False
@@ -202,7 +207,7 @@ def profile(payload: dict[str, any] = Depends(require_user_role)):
 
         # ユーザー情報を取得
         user_info = keycloak_admin.get_user(user_id)
-        
+
         # 必要な情報だけを抽出して返す
         result = {
             "id": user_info.get("id"),
@@ -251,7 +256,7 @@ def users(_: dict[str, any] = Depends(require_admin_role)):
 @router.post("/user")
 def user(email: str,
          password: str,
-         role: str,
+         roles: list[str],
          first_name: str | None = None,
          last_name: str | None = None,
          _: dict[str, any] = Depends(require_admin_role)):
@@ -260,7 +265,7 @@ def user(email: str,
         create_user_with_password(
             email=email,
             password=password,
-            roles=[role],
+            roles=roles,
             first_name=first_name,
             last_name=last_name
         )
