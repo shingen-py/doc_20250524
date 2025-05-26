@@ -16,6 +16,8 @@ Docker を利用した環境構築のため、参加者は PC1台で手軽に実
 
 開催URL: https://shingenpy.connpass.com/event/353887/
 
+スライド資料URL: https://www.docswell.com/s/hroabe/K4VP9W-2025-05-25-120443
+
 ## ハンズオン素材
 
 ## 必要な環境
